@@ -1,4 +1,3 @@
-diffusers
 fair-esm
 nextstrain-augur
 requests

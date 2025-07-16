@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 import numpy as np
 from Bio import SeqIO
-from diffusers import UNet2DModel
 
 # Constants
 LATENT_DIM = 80    # Dimensionality of latent space len(ALPHABET) * HEIGHT * WIDTH = 5 * 4 * 4 = 80
@@ -69,19 +68,3 @@ class VAE(nn.Module):
         mean, logvar = self.encode(x)
         z = self.reparameterize(mean, logvar)
         return self.decode(z), mean, logvar
-
-class DiffusionModel(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.model = UNet2DModel(
-            sample_size=WIDTH,                          # Width of the latent representation
-            in_channels=len(ALPHABET),                  # Input channel for latent vectors
-            out_channels=len(ALPHABET),                 # Output channel
-            layers_per_block=2,                         # Number of layers per block
-            block_out_channels=(64, 128),              # Match the number of down_block_types
-            down_block_types=("DownBlock2D", "AttnDownBlock2D"),
-            up_block_types=("UpBlock2D", "AttnUpBlock2D")
-        )
-
-    def forward(self, x, timesteps):
-        return self.model(x, timesteps)
