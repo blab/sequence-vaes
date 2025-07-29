@@ -1,0 +1,28 @@
+# Model options:
+# - esm2_t33_650M_UR50D, supports batch size 8
+# - esm2_t36_3B_UR50D, supports batch size 2
+# - esm2_t48_15B_UR50D
+
+# For fine-tuning ESM on data from 2020 through 2022
+ESM_fine_tune:
+  dataset: https://nextstrain.org/groups/blab/ncov/gisaid/global/all-time/16k/2023-01-01
+  gene: S
+  epochs: 1
+  batch_size: 2
+  model: esm2_t36_3B_UR50D
+  model_weights: models/esm_3B.bin
+
+# For estimating Pango lineage embeddings with ESM
+ESM_embeddings:
+  dataset: https://nextstrain.org/nextclade/sars-cov-2
+  gene: S
+  model: esm2_t36_3B_UR50D
+  model_weights: models/esm_3B.bin # file location for fine tuned model, or "pretrained"
+  log_likelihoods: results/log_likelihoods.tsv
+  embeddings: results/embeddings.tsv
+  ordination: results/ordination.tsv
+
+latent_diffusion:
+  dataset: https://nextstrain.org/ncov/gisaid/reference
+  gene: nuc
+  count: 50
