@@ -1,15 +1,16 @@
-data/
+data/*
+data/**
 
 **/.ipynb_checkpoints
 **/__pycache__
 
-EVE_frazer/model_checkpoints/
-EVE_frazer/results/
+EVE_frazer/model_checkpoints/*
+EVE_frazer/results/*
 
 VAE_moreta/.format6newick
 VAE_moreta/.format8newick
 VAE_moreta/.format7newick
 VAE_moreta/.newick
 
-standard_VAE/model_saves/
-standard_VAE/results/
+standard_VAE/model_saves/*
+standard_VAE/results/*
