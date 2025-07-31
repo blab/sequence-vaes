@@ -1,0 +1,19 @@
+SEE: conda_env_files for info on creating conda env from yaml files
+
+DATA info:
+Covid - https://docs.nextstrain.org/projects/ncov/en/latest/reference/remote_inputs.html
+    Global sample
+
+(use augur filter to filter these dates - https://docs.nextstrain.org/projects/augur/en/stable/usage/cli/filter.html)
+training:
+min_date = 2019-06-04
+max_date = 2022-06-04
+
+valid:
+min_date = 2022-06-05
+max_date = 2023-01-04
+
+test:
+min_date = 2023-01-05
+max_date = 2023-06-04
+
