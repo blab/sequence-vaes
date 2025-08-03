@@ -11,6 +11,8 @@ VAE_moreta/.format6newick
 VAE_moreta/.format8newick
 VAE_moreta/.format7newick
 VAE_moreta/.newick
+VAE_moreta/results/
+VAE_moreta/PLOTS*
 
 standard_VAE/model_saves/*
 standard_VAE/results/*
