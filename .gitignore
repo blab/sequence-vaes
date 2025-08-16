@@ -1,5 +1,10 @@
-data/*
-data/**
+data/all_data/*
+data/draupnir_data/*
+data/test/*
+data/test/**
+data/training*
+data/test*
+data/valid*
 
 **/.ipynb_checkpoints
 **/__pycache__

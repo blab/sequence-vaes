@@ -6,7 +6,7 @@ import sys
 import os
 import pyro
 
-sys.path.append("../standard_VAE/")
+sys.path.append("../VAE_standard/")
 from models import DNADataset, ALPHABET, SEQ_LENGTH, LATENT_DIM
 from matplotlib import pyplot as plt
 import numpy as np
@@ -41,61 +41,61 @@ def main(args):
     results_dir = os.getcwd() + "/results"
     script_dir = os.getcwd()
 
-    draupnir.run(args.dataset_name,root_sequence_name,args,settings_config,build_config,script_dir)
+    # draupnir.run(args.dataset_name,root_sequence_name,args,settings_config,build_config,script_dir)
 
-    # param_config = {
-    #         "lr": 1e-3,
-    #         "beta1": 0.9, #coefficients used for computing running averages of gradient and its square (default: (0.9, 0.999))
-    #         "beta2": 0.999,
-    #         "eps": 1e-8,#term added to the denominator to improve numerical stability (default: 1e-8)
-    #         "weight_decay": 0,#weight_decay: weight decay (L2 penalty) (default: 0)
-    #         "clip_norm": 10,#clip_norm: magnitude of norm to which gradients are clipped (default: 10.0)
-    #         "lrd": 1, #rate at which learning rate decays (default: 1.0)
-    #         "z_dim": 30,
-    #         "gru_hidden_dim": 60, #60
-    #     }
+    param_config = {
+            "lr": 1e-3,
+            "beta1": 0.9, #coefficients used for computing running averages of gradient and its square (default: (0.9, 0.999))
+            "beta2": 0.999,
+            "eps": 1e-8,#term added to the denominator to improve numerical stability (default: 1e-8)
+            "weight_decay": 0,#weight_decay: weight decay (L2 penalty) (default: 0)
+            "clip_norm": 10,#clip_norm: magnitude of norm to which gradients are clipped (default: 10.0)
+            "lrd": 1, #rate at which learning rate decays (default: 1.0)
+            "z_dim": 30,
+            "gru_hidden_dim": 60, #60
+        }
 
-    # name = "draupnir_data"
-    # 
+    name = "draupnir_data"
+    
 
-    # train_load,test_load,additional_load,build_config = draupnir.main.load_data(name,settings_config,build_config,param_config,results_dir,script_dir,args)
-    # additional_info = draupnir.utils.extra_processing(additional_load.ancestor_info_numbers, additional_load.patristic_matrix_full,results_dir,args,build_config)
-    # train_load,test_load,additional_load= draupnir.load_utils.datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,args,settings_config,script_dir)
+    train_load,test_load,additional_load,build_config = draupnir.main.load_data(name,settings_config,build_config,param_config,results_dir,script_dir,args)
+    additional_info = draupnir.utils.extra_processing(additional_load.ancestor_info_numbers, additional_load.patristic_matrix_full,results_dir,args,build_config)
+    train_load,test_load,additional_load= draupnir.load_utils.datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,args,settings_config,script_dir)
 
-    # if args.one_hot_encoded:
-    #     raise ValueError("Please set one_hot_encoding to False")
+    if args.one_hot_encoded:
+        raise ValueError("Please set one_hot_encoding to False")
 
-    # print("Starting Draupnir ...")
-    # print("Dataset: {}".format(name))
-    # print("Number epochs: {}".format(args.num_epochs))
-    # print("Z/latent Size: {}".format(param_config["z_dim"]))
-    # print("GRU hidden size: {}".format(param_config["gru_hidden_dim"]))
-    # print("Number train sequences: {}".format(train_load.dataset_train.shape[0]))
-    # n_test = [test_load.dataset_test.shape[0] if test_load.dataset_test is not None else 0][0]
-    # print("Number test sequences: {}".format(n_test))
-    # print("Selected Substitution matrix : {}".format(args.subs_matrix))
+    print("Starting Draupnir ...")
+    print("Dataset: {}".format(name))
+    print("Number epochs: {}".format(args.num_epochs))
+    print("Z/latent Size: {}".format(param_config["z_dim"]))
+    print("GRU hidden size: {}".format(param_config["gru_hidden_dim"]))
+    print("Number train sequences: {}".format(train_load.dataset_train.shape[0]))
+    n_test = [test_load.dataset_test.shape[0] if test_load.dataset_test is not None else 0][0]
+    print("Number test sequences: {}".format(n_test))
+    print("Selected Substitution matrix : {}".format(args.subs_matrix))
 
 
-    # print("Training Draupnir with the entire tree at once, not batching")
-    # if not args.batch_by_clade:
-    #     clades_dict=None
-    # else:
-    #     clades_dict = additional_load.clades_dict_leaves
-    # graph_coo = None #Highlight: use only with the GNN models (7)---> Otherwise it is found in additional_info
-    # draupnir.main.draupnir_train_batching(
-    #     train_load,
-    #     test_load,
-    #     additional_load,
-    #     additional_info,
-    #     build_config,
-    #     settings_config,
-    #     param_config,
-    #     args.n_samples,
-    #     args,
-    #     script_dir,
-    #     results_dir,
-    #     graph_coo,
-    #     clades_dict)
+    print("Training Draupnir with the entire tree at once, not batching")
+    if not args.batch_by_clade:
+        clades_dict=None
+    else:
+        clades_dict = additional_load.clades_dict_leaves
+    graph_coo = None #Highlight: use only with the GNN models (7)---> Otherwise it is found in additional_info
+    draupnir.main.draupnir_train(
+        train_load,
+        test_load,
+        additional_load,
+        additional_info,
+        build_config,
+        settings_config,
+        param_config,
+        args.n_samples,
+        args,
+        script_dir,
+        results_dir,
+        graph_coo,
+        clades_dict)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Draupnir args",formatter_class=RawTextHelpFormatter)
@@ -177,14 +177,14 @@ if __name__ == '__main__':
 
     args = parser.parse_args(["--dataset-name", "draupnir_data", 
                             "--use-custom", "True",
-                            "--batch-size", "None",
+                            # "--batch-size", 1,
                             "-aa-probs", "21",
                             "--alignment-file", "../data/draupnir_data/draupnir_data.mafft",
                             "--fasta-file", "../data/draupnir_data/draupnir_data_sequences.fasta",
                             "--tree-file", "../data/draupnir_data/draupnir_data_tree.tree",
                             "--select_guide", "variational"])
 
-    args.__dict__["device"] = "cuda" if torch.cuda.is_available() else "cpu"
+    args.__dict__["device"] = "cuda:1" if torch.cuda.is_available() else "cpu"
 
     print("args:\n------------------------------")
     for k,v in sorted(vars(args).items()):

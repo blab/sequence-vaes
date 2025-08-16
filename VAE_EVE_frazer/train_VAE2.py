@@ -5,7 +5,7 @@ import json
 import numpy as np
 import torch
 
-sys.path.append("..")
+sys.path.append("../VAE_standard/")
 from models import VAE, DNADataset, ALPHABET, SEQ_LENGTH, LATENT_DIM
 
 sys.path.append("../../EVE")
@@ -18,7 +18,7 @@ class DummyData:
 
         BATCH_SIZE = 64
         EPOCHS = 30
-        dataset = DNADataset("../data/training/training_aligned.fasta")
+        dataset = DNADataset("../data/training_spike.fasta")
         training_dataset = np.array([dataset[x][0].cpu().numpy() for x in range(len(dataset))])
         del dataset
 
@@ -30,7 +30,7 @@ class DummyData:
         self.one_hot_encoding = training_dataset
         self.weights = np.ones(training_dataset.shape[0])
 
-        dataset = DNADataset("../data/valid/valid_aligned.fasta")
+        dataset = DNADataset("../data/valid_spike.fasta")
         valid_dataset = np.array([dataset[x][0].cpu().numpy() for x in range(len(dataset))])
         del dataset
 
@@ -45,8 +45,8 @@ if __name__ == '__main__':
 
     
     enc_params = {
-        # "hidden_layers_sizes"               :   [2000,1000,300],      # takes too much memory
-        "hidden_layers_sizes"               :   [1000,500,200],
+        "hidden_layers_sizes"               :   [2000,1000,300],      # takes too much memory
+        # "hidden_layers_sizes"               :   [1000,500,200],
         "z_dim"                             :   50,
         "convolve_input"                    :   False,
         "convolution_input_depth"           :   40,
@@ -58,8 +58,8 @@ if __name__ == '__main__':
     }
 
     dec_params = {
-        # "hidden_layers_sizes"               :   [300,1000,2000],      # takes too much memory
-        "hidden_layers_sizes"               :   [200,500,1000],
+        "hidden_layers_sizes"               :   [300,1000,2000],      # takes too much memory
+        # "hidden_layers_sizes"               :   [200,500,1000],
         "z_dim"                             :   50,
         "bayesian_decoder"                  :   True,
         "first_hidden_nonlinearity"         :   "relu", 

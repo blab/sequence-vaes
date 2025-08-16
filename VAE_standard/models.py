@@ -118,11 +118,9 @@ class VAE(nn.Module):
         best_v_loss = float('inf')
         best_model = self.state_dict()
         global_step = 0
-        beta = 0
 
-
-        BETA_MAX = 0.05
-        WARMUP_STEPS = 5000
+        BETA_MAX = 1
+        WARMUP_STEPS = 50000
         FREE_BITS = 1.0
 
         assert model_save_path, "please provide a dirpath to store models"
@@ -149,6 +147,7 @@ class VAE(nn.Module):
 
                 # Train VAE
                 mean, logvar = self.encoder.forward(batch)
+                logvar = torch.clamp(logvar, max=10)
 
                 eps = torch.randn_like(mean)
                 std = torch.exp(0.5 * logvar)
@@ -158,8 +157,6 @@ class VAE(nn.Module):
 
                 recon_loss = F.binary_cross_entropy_with_logits(recon, batch, reduction='sum') / batch.shape[0]
                 kl_loss = -0.5 * torch.sum(1 + logvar - mean.pow(2) - logvar.exp()) / batch.shape[0]
-                # kl_loss = torch.clamp(kl_loss, min=FREE_BITS)
-                # kl_loss = kl_loss.sum() / batch.shape[0]
                 vae_loss = recon_loss + beta * kl_loss
 
                 optimizer.zero_grad()

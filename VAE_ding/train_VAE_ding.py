@@ -58,6 +58,11 @@ valid_batch_size = valid_num_seq
 valid_train_data = MSA_Dataset(valid_msa_binary, valid_msa_weight, valid_msa_keys)
 valid_train_data_loader = DataLoader(valid_train_data, batch_size = valid_batch_size, shuffle = True)
 
+print(valid_len_protein)
+print(valid_num_res_type)
+print(len_protein)
+print(num_res_type)
+
 
 ## here we use only one hidden layer with 100 neurons. If you want to use more
 ## hidden layers, change the parameter num_hidden_units. For instance, changing

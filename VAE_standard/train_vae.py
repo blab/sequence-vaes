@@ -16,6 +16,7 @@ def main(args):
 
     # training data
     train_dataset = DNADataset(args.input_alignment)
+    assert SEQ_LENGTH == train_dataset[0][0].shape[0]
     print("training data number: %d"%(len(train_dataset)))
     dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
 
@@ -26,7 +27,7 @@ def main(args):
         print("validation data number: %d"%(len(valid_dataset)))
         valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
 
-    input_dim = 29903 * len(ALPHABET)
+    input_dim = SEQ_LENGTH * len(ALPHABET)
     vae_model = VAE(input_dim=input_dim, latent_dim=50).to(DEVICE)
 
     if args.input_vae_model and os.path.exists(args.input_vae_model):
@@ -59,11 +60,11 @@ if __name__ == "__main__":
     parser.add_argument("--input-valid-alignment", type=str, default=None, help="file Path to the validation input aligned FASTA file.")
     parser.add_argument("--valid-logs", type=str, default=None, help="filepath to store validation results")
 
-    args = parser.parse_args(["--input-alignment", "../data/training/training_aligned.fasta",
+    args = parser.parse_args(["--input-alignment", "../data/training_spike.fasta",
                             "--train-logs", "./results/train_logs.json",
                             "--output-vae-model", "./model_saves",
-                            "--device", "cuda:1",
-                            "--input-valid-alignment", "../data/valid/valid_aligned.fasta",
+                            "--device", "cuda",
+                            "--input-valid-alignment", "../data/valid_spike.fasta",
                             "--valid-logs", "./results/valid_logs.json"])
 
     print("args:\n------------------------------")
