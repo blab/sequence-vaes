@@ -8,6 +8,7 @@ data/valid*
 
 **/.ipynb_checkpoints
 **/__pycache__
+**/*csv
 
 VAE_EVE_frazer/model_checkpoints/*
 VAE_EVE_frazer/results/*
