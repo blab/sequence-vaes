@@ -83,11 +83,10 @@ class Decoder(nn.Module):
             x = self.non_linear_activation(x)
 
         x = self.means[-1](x)
-        # x = self.last_non_linear_activation(x)
         x = x.view(-1,self.input_dim, self.input_channels)
         # x = F.softmax(x, dim=-1)
         x = F.log_softmax(x, dim=-1)
-        x = x.view(-1,self.input_dim * self.input_channels)
+        # x = x.view(-1,self.input_dim * self.input_channels)
         return x
 
 class VAE(nn.Module):
@@ -120,7 +119,7 @@ class VAE(nn.Module):
         global_step = 0
 
         BETA_MAX = 1
-        WARMUP_STEPS = 50000
+        WARMUP_STEPS = 40000
         FREE_BITS = 1.0
 
         assert model_save_path, "please provide a dirpath to store models"
@@ -153,9 +152,13 @@ class VAE(nn.Module):
                 std = torch.exp(0.5 * logvar)
                 z = torch.mul(eps, std) + mean
 
+                # log(q), where q are probabilities
                 recon = self.decoder.forward(z)
+                recon = recon.view(-1, len(ALPHABET))
 
-                recon_loss = F.binary_cross_entropy_with_logits(recon, batch, reduction='sum') / batch.shape[0]
+                batch = torch.argmax(batch.view(-1, len(ALPHABET)), dim=-1)
+                # computes cross entropy, i.e. -E_p(log(q))
+                recon_loss = F.nll_loss(recon, batch, reduction='sum') / batch.shape[0]
                 kl_loss = -0.5 * torch.sum(1 + logvar - mean.pow(2) - logvar.exp()) / batch.shape[0]
                 vae_loss = recon_loss + beta * kl_loss
 
@@ -170,23 +173,27 @@ class VAE(nn.Module):
             if valid_dataloader:
                 with torch.no_grad():
                     for i, record_set in enumerate(dataloader):
+                        beta = BETA_MAX * min(1.0, global_step / WARMUP_STEPS)
                         batch, _ = record_set  # Unpack sequence tensor and record_id
                         # batch = batch.to(DEVICE)
                         batch = batch.view(batch.size(0), -1).to(DEVICE)  # Flatten one-hot sequences
 
                         # Train VAE
                         mean, logvar = self.encoder.forward(batch)
+                        logvar = torch.clamp(logvar, max=10)
 
                         eps = torch.randn_like(mean)
                         std = torch.exp(0.5 * logvar)
                         z = torch.mul(eps, std) + mean
 
+                        # log(q), where q are probabilities
                         recon = self.decoder.forward(z)
+                        recon = recon.view(-1, len(ALPHABET))
 
-                        recon_loss = F.binary_cross_entropy_with_logits(recon, batch, reduction='sum') / batch.shape[0]
+                        batch = torch.argmax(batch.view(-1, len(ALPHABET)), dim=-1)
+                        # computes cross entropy, i.e. -E_p(log(q))
+                        recon_loss = F.nll_loss(recon, batch, reduction='sum') / batch.shape[0]
                         kl_loss = -0.5 * torch.sum(1 + logvar - mean.pow(2) - logvar.exp()) / batch.shape[0]
-                        # kl_loss = torch.clamp(kl_loss, min=FREE_BITS)
-                        # kl_loss = kl_loss.sum() / batch.shape[0]
                         vae_loss = recon_loss + beta * kl_loss
 
                         valid_epoch_loss += vae_loss.item()

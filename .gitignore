@@ -9,6 +9,7 @@ data/valid*
 **/.ipynb_checkpoints
 **/__pycache__
 **/*csv
+**/*fasta
 
 VAE_EVE_frazer/model_checkpoints/*
 VAE_EVE_frazer/results/*
@@ -22,5 +23,6 @@ VAE_moreta/PLOTS*
 
 VAE_standard/model_saves/*
 VAE_standard/results/*
+VAE_standard/bedford_code/results_bedford/*
 
 VAE_ding/output/
