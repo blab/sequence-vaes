@@ -37,11 +37,11 @@ dependencies:
   - bx-python=0.11.0=py39had678e3_3
   - bzip2=1.0.8=h4bc722e_7
   - c-ares=1.34.5=hb9d3cd8_0
-  - ca-certificates=2025.7.14=hbd8a1cb_0
+  - ca-certificates=2025.8.3=hbd8a1cb_0
   - cached-property=1.5.2=hd8ed1ab_1
   - cached_property=1.5.2=pyha770c72_1
   - cairo=1.18.4=h3394656_0
-  - certifi=2025.7.14=pyhd8ed1ab_0
+  - certifi=2025.8.3=pyhd8ed1ab_0
   - cffi=1.17.1=py39h15c3d72_0
   - charset-normalizer=3.4.2=pyhd8ed1ab_0
   - colorama=0.4.6=pyhd8ed1ab_1
@@ -256,6 +256,7 @@ dependencies:
   - libtiff=4.7.0=hf01ce69_5
   - libumfpack=6.3.5=heb53515_7100102
   - libuuid=2.38.1=h0b41bf4_0
+  - libuv=1.51.0=hb03c661_1
   - libva=2.22.0=h4f16b4b_2
   - libvorbis=1.3.7=h9c3ff4c_0
   - libvpx=1.14.1=hac33072_0
@@ -298,6 +299,7 @@ dependencies:
   - nccl=2.27.6.1=h9b8ff78_0
   - ncurses=6.5=h2d0b736_3
   - networkx=3.2.1=pyhd8ed1ab_0
+  - nodejs=16.20.2=hc19f0b3_3
   - nspr=4.36=h5888daf_0
   - nss=3.113=h159eef7_0
   - numba=0.60.0=py39h0320e7d_0
@@ -307,7 +309,7 @@ dependencies:
   - openh264=2.5.0=hf92e6e3_0
   - openjpeg=2.5.3=h5fbd93e_0
   - openldap=2.6.10=he970967_0
-  - openssl=3.5.1=h7b32b05_0
+  - openssl=3.5.2=h26f9b46_0
   - opt-einsum=3.4.0=hd8ed1ab_1
   - opt_einsum=3.4.0=pyhd8ed1ab_1
   - packaging=25.0=pyh29332c3_1
@@ -477,7 +479,9 @@ dependencies:
       - httpcore==1.0.9
       - httpx==0.28.1
       - ipykernel==6.30.0
+      - ipympl==0.9.7
       - ipython==8.18.1
+      - ipywidgets==8.1.7
       - isoduration==20.11.0
       - jedi==0.19.2
       - json5==0.12.0
@@ -488,8 +492,13 @@ dependencies:
       - jupyter-server-terminals==0.5.3
       - jupyterlab==4.4.5
       - jupyterlab-server==2.27.3
+      - jupyterlab-widgets==3.0.15
+      - jupyterthemes==0.20.0
+      - lesscpy==0.15.1
+      - levenshtein==0.27.1
       - matplotlib-inline==0.1.7
       - nest-asyncio==1.6.0
+      - notebook==7.4.5
       - notebook-shim==0.2.4
       - overrides==7.7.0
       - parso==0.8.4
@@ -499,6 +508,7 @@ dependencies:
       - ptyprocess==0.7.0
       - pure-eval==0.2.3
       - python-json-logger==3.3.0
+      - rapidfuzz==3.13.0
       - rfc3339-validator==0.1.4
       - rfc3986-validator==0.1.1
       - send2trash==1.8.3
@@ -511,4 +521,5 @@ dependencies:
       - wcwidth==0.2.13
       - webcolors==24.11.1
       - websocket-client==1.8.0
+      - widgetsnbextension==4.0.14
 prefix: /home/averma2/miniforge3/envs/Moreta_env
