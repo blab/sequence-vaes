@@ -10,6 +10,7 @@ data/valid*
 **/__pycache__
 **/*csv
 **/*fasta
+**/*pkl
 
 VAE_EVE_frazer/model_checkpoints/*
 VAE_EVE_frazer/results/*
