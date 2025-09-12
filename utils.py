@@ -1,0 +1,164 @@
+import os
+import torch
+import numpy as np
+import pandas as pd
+from VAE_standard.models import DNADataset
+import numpy as np
+from matplotlib import pyplot as plt
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# HELPER FUNCTIONS
+def make_csv_from_df(strain_names, secret_names, file_name, lab="secret",color=True):
+    """
+    HELPER function for make_auspice_labeling_csv
+    """
+    if not os.path.isfile(file_name):
+        open(file_name, "x")
+
+    with open(file_name, "w") as f:
+        if color:
+            f.write(f"strain,{lab},{lab}__colour\n")
+            cmap = plt.get_cmap("gist_ncar")
+            clusters = np.sort(np.array(list(set(secret_names))))
+
+            test = [cmap(x)[:3] for x in np.arange(len(clusters)) / len(clusters)]
+            test = [(int(x*255), int(y*255), int(z*255)) for (x,y,z) in test]
+            test = ["#%02x%02x%02x" % x for x in test]
+
+            color_dict = {c:x for c,x in zip(clusters, test)}
+            for n,c in zip(strain_names, secret_names):
+                col = color_dict[c]
+                f.write(n + "," + c + "," + col + "\n")
+
+        else:
+            f.write(f"strain,{lab}\n")
+            for n,c in zip(strain_names, secret_names):
+                f.write(n + "," + c + "\n")
+
+
+# minimizer functions for geodesic ------------------------------
+# Pytorch implementation for speed
+def compute_rho(mu, eps=1e-12):
+    """rho = max_i min_{j!=i} ||mu_i - mu_j||_2, vectorized."""
+    diff = mu[:, None, :] - mu[None, :, :]  # (C,C,D)
+    d = torch.sqrt(torch.sum(diff * diff, dim=-1)) # (C,C)
+    d.fill_diagonal_(torch.inf)
+    rho, _ = torch.min(d, dim=1)
+    rho, _ = torch.max(rho[None,:] + eps, dim=-1)
+    return rho
+
+def dist_func(z, mu, sigma_inv): 
+    diff = z[:, None, :] - mu[None, :, :] # (b, 1, dim) - (1, c, dim) = (b, c, dim)
+    dist_sq = torch.square(torch.sum(diff * sigma_inv[None, :, :] * diff, dim=-1)) # (b, c, dim) * (1, c, dim) * (b, c, dim)
+    return dist_sq
+
+def omega(z, mu, sigma_inv, rho):
+    dists_sq = dist_func(z, mu, sigma_inv)
+    return torch.exp(-dists_sq / torch.square(rho))
+
+def G_batched(z, mu, sigma_var, rho, lam, tau=0, eps=1e-12):
+    sigma_inv = 1.0 / (sigma_var + eps) # (c, dim)
+    omegas = omega(z, mu, sigma_inv, rho) # (b,c)
+    summand = torch.matmul(omegas.double(), sigma_inv.double()) # (b,dim)
+    summand = summand + lam * torch.exp(-1.0 * tau * torch.sum(torch.square(z), dim=-1))[:,None]
+    return summand
+
+def _curve_weights(k):
+    w = torch.full(size=(1,k), fill_value=1.0 / (k - 1)).to(DEVICE)
+    w[0] *= 0.5; w[-1] *= 0.5
+    return w
+
+def minimize_curve(z0, z1, mu, sigma_var, rho,
+                   k=101, lam=0.0, tau=0.0,
+                   smooth=0.0, seed=None, eps=1e-12, jac=None, DEVICE=DEVICE):
+    """
+    Minimize sum_i w_i * [1 / det G(z_i)] with fixed endpoints.
+    - z0, z1: (D,)
+    - mu: (C,D)
+    - sigma_var: (C,D) diagonal variances of Σ_c
+    - rho: float
+    - k: number of discretization points (len(t)=k)
+    - smooth: weight on sum ||Z[i+1]-Z[i]||^2 (optional)
+    Returns (Z_opt, losses)
+    """
+    z0 = z0.to(DEVICE)
+    z1 = z1.to(DEVICE)
+    mu = mu.to(DEVICE)
+    sigma_var = sigma_var.to(DEVICE)
+    rho = rho.to(DEVICE)
+    
+    D = z0.shape[0]
+    t = torch.linspace(0.0, 1.0, k)[:, None].to(DEVICE)
+    Z0 = (1 - t) * z0[None, :] + t * z1[None, :]
+    if k > 2:
+        Z0[1:-1] += 1 * torch.randn((k-2, D)).to(DEVICE) # jitter
+    w = _curve_weights(k)
+
+    def pack(Z):  # (k,D) -> ((k-2)*D,)
+        return torch.ravel(Z[1:-1])
+
+    def unpack(x):  # ((k-2)*D,) -> (k,D) with fixed endpoints
+        Z = torch.empty((k,D), dtype=float).to(DEVICE)
+        Z[0] = z0
+        Z[-1] = z1
+        if k > 2:
+            Z[1:-1] = x.view(k-2, D)
+        return Z
+
+    def objective(x):
+        Z = unpack(x)
+        Gd = G_batched(Z, mu, sigma_var, rho, lam=lam, tau=tau, eps=eps)   # (k,D)
+        # 1 / det(G) computed stably: exp(-sum_d log Gd)
+        inv_det = torch.exp(-1.0 * torch.sum(torch.log(Gd + eps), dim=1))        # (k,)
+        val = torch.sum(w * inv_det)
+        if smooth > 0.0:
+            diffs = Z[1:] - Z[:-1]
+            val += smooth * torch.sum(diffs * diffs)
+        return val
+
+    list_params = []
+    params = pack(Z0).to(DEVICE)
+    params.requires_grad_()
+    optimizer = torch.optim.Adam([params], lr=1e-3)
+
+    losses = []
+    
+    for i in range(10000):
+        optimizer.zero_grad()
+        loss = objective(params)
+        loss.backward()
+        optimizer.step()
+        list_params.append(params.detach().clone())
+        losses.append(loss.item())
+
+    # disp_x = range(len(losses) // 10)
+    # disp_y = [losses[x * 10] for x in range(len(losses) // 10)]
+    # plt.plot(disp_x, disp_y)
+    # plt.show()
+
+    return unpack(params), losses
+# ------------------------------
+
+
+
+# ACTUAL FUNCTIONS 
+def make_auspice_labeling_csv():
+    """
+    make CSVs for valid, training, and test that can be used for visualization in auspice.us
+    uses HELPER make_csv_from_df
+    """
+
+    dsets = ["valid","training","test"]
+    abspath = "."
+
+    for dset in dsets:
+        print(dset)
+        dataset = DNADataset(f"{abspath}/data/{dset}_spike.fasta")
+        new_dataset = np.array([dataset[x][0].numpy() for x in range(len(dataset))])
+        vals = np.array([dataset[x][1] for x in range(len(dataset))])
+
+        metadata = pd.read_csv(f"{abspath}/data/all_data/all_metadata.tsv", sep="\t")
+        clade_labels = [metadata.loc[metadata.name == vals[i], "clade_membership"].values[0] for i in range(len(vals))]
+
+        make_csv_from_df(vals, clade_labels, f"{dset}_labels.csv", lab=f"{dset}")   
