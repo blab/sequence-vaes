@@ -12,6 +12,7 @@ data/valid*
 **/*fasta
 **/*pkl
 **/*txt
+!helpful_notes.txt
 
 VAE_EVE_frazer/model_checkpoints/*
 VAE_EVE_frazer/results/*
