@@ -6,6 +6,10 @@ from VAE_standard.models import DNADataset
 import numpy as np
 from matplotlib import pyplot as plt
 
+from treetime.utils import datetime_from_numeric
+from collections.abc import Iterable
+import pandas as pd
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # HELPER FUNCTIONS
@@ -71,7 +75,7 @@ def _curve_weights(k):
 
 def minimize_curve(z0, z1, mu, sigma_var, rho,
                    k=101, lam=0.0, tau=0.0,
-                   smooth=0.0, seed=None, eps=1e-12, jac=None, DEVICE=DEVICE):
+                   smooth=0.0, seed=None, eps=1e-12, jac=None, DEVICE=DEVICE, n_reps=8000):
     """
     Minimize sum_i w_i * [1 / det G(z_i)] with fixed endpoints.
     - z0, z1: (D,)
@@ -124,7 +128,7 @@ def minimize_curve(z0, z1, mu, sigma_var, rho,
 
     losses = []
     
-    for i in range(10000):
+    for i in range(n_reps):
         optimizer.zero_grad()
         loss = objective(params)
         loss.backward()
@@ -138,6 +142,13 @@ def minimize_curve(z0, z1, mu, sigma_var, rho,
     # plt.show()
 
     return unpack(params), losses
+
+def flatten(xs):
+    for x in xs:
+        if isinstance(x, Iterable) and not isinstance(x, (str, float)):
+            yield from flatten(x)
+        else:
+            yield x
 # ------------------------------
 
 
@@ -162,3 +173,71 @@ def make_auspice_labeling_csv():
         clade_labels = [metadata.loc[metadata.name == vals[i], "clade_membership"].values[0] for i in range(len(vals))]
 
         make_csv_from_df(vals, clade_labels, f"{dset}_labels.csv", lab=f"{dset}")   
+
+def get_data_dict(dset, abspath):
+    """
+    input
+    -----
+    dset: String, one of ["train", "valid", "test"]
+    abspath: String, location of data directory parent dir
+
+    output
+    ------
+    keys: String[], ["new_dataset", "metadata", "collection_dates", "pairs", "parents_dict", "clade_indexes", "clade_labels"]
+    data_dict: Dict{}, dict with keys corresponding to above
+    """
+
+    data_dict = dict()
+
+    dataset = DNADataset(f"{abspath}/data/{dset}_spike.fasta")
+    new_dataset = np.array([dataset[x][0].numpy() for x in range(len(dataset))])
+    vals = np.array([dataset[x][1] for x in range(len(dataset))])
+    # labeling
+    metadata = pd.read_csv(f"{abspath}/data/all_data/all_metadata.tsv", sep="\t")
+    clade_labels = [metadata.loc[metadata.name == vals[i], "clade_membership"].values[0] for i in range(len(vals))]
+    dates = [metadata.loc[metadata.name == vals[i], "date"].values[0] for i in range(len(vals))]
+    dates = [datetime_from_numeric(x) for x in dates]
+
+    collection_dates = pd.DataFrame([[x] for i,x in enumerate(dates)], columns=["date"])
+    collection_dates.index = pd.to_datetime(collection_dates["date"])
+    collection_dates = collection_dates.groupby(pd.Grouper(freq='ME'))
+    collection_dates = list(collection_dates.groups.values())
+    print("collection_dates\n", collection_dates)
+    collection_dates = [collection_dates[0]] + [collection_dates[i] - collection_dates[i-1] for i in range(len(collection_dates)-1, 0, -1)][::-1]
+    collection_dates = list(flatten([[i for j in range(x)] for i,x in enumerate(collection_dates)]))
+
+    clusters = np.sort(np.array(list(set(clade_labels))))
+    print("\nunique clusters\n", clusters)
+    get_clade = lambda x: [True if elem == x else False for elem in clade_labels]
+
+    indexes = tuple([np.arange(len(clade_labels))[get_clade(x)] for x in clusters])
+
+    new_vals = []
+    for v in vals:
+        if metadata.loc[metadata.name == v, "clade_membership"].values[0] in clusters:
+            new_vals.append(v)
+
+    # sanity check
+    print("\nsanity check - len(new_vals), len(vals)\n", len(new_vals), " ", len(vals))
+
+    parents = pd.read_csv(f"{abspath}/data/all_data/all_branches.tsv", sep="\t")
+    node_dict = {x:i for i,x in enumerate(new_vals)}
+    pairs = []
+    for p,c in zip(parents["parent"], parents["child"]):
+        i1 = node_dict.get(p, None)
+        i2 = node_dict.get(c, None)
+
+        if i1 and i2:
+            pairs.append((i1,i2))
+
+    pairs = np.array(pairs)
+    get_parents_dict = np.full(new_dataset.shape[0], None)
+    for (p,c) in pairs:
+        get_parents_dict[c] = p
+
+
+    var_names = ["new_dataset", "vals", "metadata", "clade_labels", "collection_dates", "indexes", "pairs", "get_parents_dict"]
+    for k in var_names:
+        data_dict[k] = eval(k)
+
+    return var_names, data_dict
