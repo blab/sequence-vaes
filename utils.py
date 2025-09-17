@@ -75,7 +75,7 @@ def _curve_weights(k):
 
 def minimize_curve(z0, z1, mu, sigma_var, rho,
                    k=101, lam=0.0, tau=0.0,
-                   smooth=0.0, seed=None, eps=1e-12, jac=None, DEVICE=DEVICE, n_reps=8000):
+                   smooth=0.0, seed=None, eps=1e-12, jac=None, DEVICE=DEVICE, n_reps=8000, jitter=5):
     """
     Minimize sum_i w_i * [1 / det G(z_i)] with fixed endpoints.
     - z0, z1: (D,)
@@ -96,7 +96,7 @@ def minimize_curve(z0, z1, mu, sigma_var, rho,
     t = torch.linspace(0.0, 1.0, k)[:, None].to(DEVICE)
     Z0 = (1 - t) * z0[None, :] + t * z1[None, :]
     if k > 2:
-        Z0[1:-1] += 1 * torch.randn((k-2, D)).to(DEVICE) # jitter
+        Z0[1:-1] += jitter * torch.randn((k-2, D)).to(DEVICE) # jitter
     w = _curve_weights(k)
 
     def pack(Z):  # (k,D) -> ((k-2)*D,)
@@ -149,6 +149,27 @@ def flatten(xs):
             yield from flatten(x)
         else:
             yield x
+
+def l2_path_len(geopath):
+    """
+    path: (N, d) vector of N points that are d-dimensional
+
+    returns: l2 path length
+    """
+    l2_dists = np.sqrt(np.sum(np.square(geopath[1:,:] - geopath[:-1,:]), axis=-1))
+    return np.sum(l2_dists)
+    
+def cos_sim(geopath):
+    """
+    path: (N, d) vector of N points that are d-dimensional
+
+    returns: sum of angular differences across path
+    """
+    l2_norms = np.sqrt(np.sum(np.square(geopath), axis=-1))[:,None]
+    unit_vec_path = np.divide(geopath, l2_norms)
+    ang_dists = np.diagonal(np.dot(unit_vec_path[1:,:], unit_vec_path[:-1,:].T))
+    ang_dists = np.sum(np.arccos(ang_dists))
+    return ang_dists
 # ------------------------------
 
 
@@ -241,3 +262,4 @@ def get_data_dict(dset, abspath):
         data_dict[k] = eval(k)
 
     return var_names, data_dict
+

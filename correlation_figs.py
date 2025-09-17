@@ -23,7 +23,7 @@ from scipy.optimize import minimize
 from scipy.optimize._numdiff import approx_derivative
 import pickle
 
-from utils import minimize_curve, G_batched, compute_rho
+from utils import minimize_curve, G_batched, compute_rho, l2_path_len, cos_sim
 
 BATCH_SIZE = 64
 
@@ -117,15 +117,25 @@ rho = compute_rho(mu)
 print(c)
 print(len(pts))
 geo_losses = []
+l2_losses = []
+cos_losses = []
 for (p1, p2) in pts:
-    _, glosses = minimize_curve(Z_mean[p1,:], Z_mean[p2,:], mu, sigma, rho, lam=1, smooth=1e-4, eps=1e-13, k=20, n_reps=8000)
+    geopath, glosses = minimize_curve(Z_mean[p1,:], Z_mean[p2,:], mu, sigma, rho, lam=0.8, smooth=1e-2, eps=1e-10, k=50, n_reps=10000, jitter=1)
+
+    np_geo = geopath.cpu().detach().numpy()
+
     geo_losses.append(glosses[-1])
+    l2_losses.append(l2_path_len(np_geo))
+    cos_losses.append(cos_sim(np_geo))
+
     print(".", end="", flush=True)
 print()
 
-# with open("geo_losses.txt", "wb") as f:
-#     pickle.dump(geo_losses, f)
+loss_dist = {"geo":geo_losses, "l2":l2_losses, "cos":cos_losses}
 
-# with open("geo_losses.txt", "rb") as f:
-#     b = pickle.load(f)
-#     print(b)
+with open("geo_losses.txt", "wb") as f:
+    pickle.dump(geo_losses, f)
+
+with open("geo_losses.txt", "rb") as f:
+    b = pickle.load(f)
+    print(b)

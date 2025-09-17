@@ -121,6 +121,7 @@ class VAE(nn.Module):
         BETA_MAX = 1
         WARMUP_STEPS = 40000
         FREE_BITS = 1.0
+        IGNORE_IDX = 4
 
         assert model_save_path, "please provide a dirpath to store models"
         assert train_logs, "please provide a filepath to store training results"
@@ -141,8 +142,15 @@ class VAE(nn.Module):
                 global_step += 1
                 beta = BETA_MAX * min(1.0, global_step / WARMUP_STEPS)
                 batch, _ = record_set  # Unpack sequence tensor and record_id
-                # batch = batch.to(DEVICE)
-                batch = batch.view(batch.size(0), -1).to(DEVICE)  # Flatten one-hot sequences
+
+                batch = batch.to(DEVICE)
+                bsize = batch.size(0)
+
+                batch = batch.view(-1, len(ALPHABET))
+                target = torch.argmax(batch.view(-1, len(ALPHABET)), dim=-1)  # target
+                batch[target == IGNORE_IDX] = batch[target == IGNORE_IDX].zero_().to(DEVICE)  # treat gaps like masked seq.
+
+                batch = batch.view(bsize, -1)  # Flatten one-hot sequences
 
                 # Train VAE
                 mean, logvar = self.encoder.forward(batch)
@@ -156,9 +164,9 @@ class VAE(nn.Module):
                 recon = self.decoder.forward(z)
                 recon = recon.view(-1, len(ALPHABET))
 
-                batch = torch.argmax(batch.view(-1, len(ALPHABET)), dim=-1)
                 # computes cross entropy, i.e. -E_p(log(q))
-                recon_loss = F.nll_loss(recon, batch, reduction='sum') / batch.shape[0]
+                # recon_loss = F.nll_loss(recon, batch, reduction='sum') / batch.shape[0]
+                recon_loss = F.nll_loss(recon, target, reduction='sum', ignore_index=IGNORE_IDX) / batch.shape[0] # ignore gaps
                 kl_loss = -0.5 * torch.sum(1 + logvar - mean.pow(2) - logvar.exp()) / batch.shape[0]
                 vae_loss = recon_loss + beta * kl_loss
 
@@ -175,8 +183,15 @@ class VAE(nn.Module):
                     for i, record_set in enumerate(dataloader):
                         beta = BETA_MAX * min(1.0, global_step / WARMUP_STEPS)
                         batch, _ = record_set  # Unpack sequence tensor and record_id
-                        # batch = batch.to(DEVICE)
-                        batch = batch.view(batch.size(0), -1).to(DEVICE)  # Flatten one-hot sequences
+
+                        batch = batch.to(DEVICE)
+                        bsize = batch.size(0)
+
+                        batch = batch.view(-1, len(ALPHABET))
+                        target = torch.argmax(batch.view(-1, len(ALPHABET)), dim=-1)  # target
+                        batch[target == IGNORE_IDX] = batch[target == IGNORE_IDX].zero_().to(DEVICE)  # treat gaps like masked seq.
+
+                        batch = batch.view(bsize, -1)  # Flatten one-hot sequences
 
                         # Train VAE
                         mean, logvar = self.encoder.forward(batch)
@@ -190,9 +205,8 @@ class VAE(nn.Module):
                         recon = self.decoder.forward(z)
                         recon = recon.view(-1, len(ALPHABET))
 
-                        batch = torch.argmax(batch.view(-1, len(ALPHABET)), dim=-1)
                         # computes cross entropy, i.e. -E_p(log(q))
-                        recon_loss = F.nll_loss(recon, batch, reduction='sum') / batch.shape[0]
+                        recon_loss = F.nll_loss(recon, target, reduction='sum', ignore_index=IGNORE_IDX) / batch.shape[0]
                         kl_loss = -0.5 * torch.sum(1 + logvar - mean.pow(2) - logvar.exp()) / batch.shape[0]
                         vae_loss = recon_loss + beta * kl_loss
 
