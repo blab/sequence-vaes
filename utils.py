@@ -1,8 +1,9 @@
 import os
 import torch
+import torch.nn.functional as F
 import numpy as np
 import pandas as pd
-from VAE_standard.models import DNADataset
+from VAE_standard.models import DNADataset, ALPHABET
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -75,7 +76,7 @@ def _curve_weights(k):
 
 def minimize_curve(z0, z1, mu, sigma_var, rho,
                    k=101, lam=0.0, tau=0.0,
-                   smooth=0.0, seed=None, eps=1e-12, jac=None, DEVICE=DEVICE, n_reps=8000, jitter=5):
+                   smooth1=0.0, smooth2=0.0, seed=None, eps=1e-12, jac=None, DEVICE=DEVICE, n_reps=8000, jitter=5):
     """
     Minimize sum_i w_i * [1 / det G(z_i)] with fixed endpoints.
     - z0, z1: (D,)
@@ -116,9 +117,16 @@ def minimize_curve(z0, z1, mu, sigma_var, rho,
         # 1 / det(G) computed stably: exp(-sum_d log Gd)
         inv_det = torch.exp(-1.0 * torch.sum(torch.log(Gd + eps), dim=1))        # (k,)
         val = torch.sum(w * inv_det)
-        if smooth > 0.0:
+        if smooth1 > 0.0 or smooth2 > 0.0:
+            num_pts = Z.shape[0] - 1           
+
             diffs = Z[1:] - Z[:-1]
-            val += smooth * torch.sum(diffs * diffs)
+
+            l2_dists = F.softmax(torch.sum(diffs, dim=-1), dim=0)
+            target = torch.full((1,num_pts), 1/num_pts).to(DEVICE)
+
+            # val += smooth * torch.sum(diffs * diffs)
+            val += smooth1 * torch.sum(torch.square(l2_dists - target)) + smooth2 * torch.sum(diffs * diffs)
         return val
 
     list_params = []
@@ -170,6 +178,24 @@ def cos_sim(geopath):
     ang_dists = np.diagonal(np.dot(unit_vec_path[1:,:], unit_vec_path[:-1,:].T))
     ang_dists = np.sum(np.arccos(ang_dists))
     return ang_dists
+
+def mask_gaps(X, zero_idx=4):
+    """ 
+    X: (torch.tensor) one-hot encoded sequence data that can be reshaped into size (-1, C))
+    zero_idx: (int) 0 <= zero_idx < C is the index to zero
+    
+    returns:
+    X_new: one-hot encoded sequence where sections corresponding to zero_idx are zeroed
+    """
+    
+    old_shape = X.size()
+    X_new = X.view(-1, len(ALPHABET))
+    target = torch.argmax(X_new, dim=-1)
+
+    DEVICE = X.device
+
+    X_new[target == zero_idx] = X_new[target == zero_idx].zero_().to(DEVICE)
+    return X_new.view(old_shape)
 # ------------------------------
 
 
