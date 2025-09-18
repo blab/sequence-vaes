@@ -151,12 +151,16 @@ def minimize_curve(z0, z1, mu, sigma_var, rho,
 
     return unpack(params), losses
 
-def flatten(xs):
-    for x in xs:
-        if isinstance(x, Iterable) and not isinstance(x, (str, float)):
-            yield from flatten(x)
-        else:
-            yield x
+def path_cost(path, mu, sigma_var, rho, eps=1e-12, DEVICE=DEVICE, lam=0.0, tau=0.0):
+    """
+    path: (N, d) vector of N points that are d-dimensional
+
+    returns: cumulative path cost wrt geodesic metric defined above (see minimize_curve)
+    """
+    Gd = G_batched(path, mu, sigma_var, rho, lam=lam, tau=tau, eps=eps)   # (k,D)
+    inv_det = torch.exp(-1.0 * torch.sum(torch.log(Gd + eps), dim=1))        # (k,)
+    val = torch.sum(inv_det)
+    return val
 
 def l2_path_len(geopath):
     """
@@ -178,6 +182,14 @@ def cos_sim(geopath):
     ang_dists = np.diagonal(np.dot(unit_vec_path[1:,:], unit_vec_path[:-1,:].T))
     ang_dists = np.sum(np.arccos(ang_dists))
     return ang_dists
+
+
+def flatten(xs):
+    for x in xs:
+        if isinstance(x, Iterable) and not isinstance(x, (str, float)):
+            yield from flatten(x)
+        else:
+            yield x
 
 def mask_gaps(X, zero_idx=4):
     """ 
