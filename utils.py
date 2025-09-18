@@ -55,7 +55,11 @@ def compute_rho(mu, eps=1e-12):
 
 def dist_func(z, mu, sigma_inv): 
     diff = z[:, None, :] - mu[None, :, :] # (b, 1, dim) - (1, c, dim) = (b, c, dim)
-    dist_sq = torch.square(torch.sum(diff * sigma_inv[None, :, :] * diff, dim=-1)) # (b, c, dim) * (1, c, dim) * (b, c, dim)
+
+    sigma_inv_mat = torch.diag_embed(sigma_inv) # (c, dim, dim)
+    dist_sq = torch.einsum("bci, cij, bcj -> bc", diff.float(), sigma_inv_mat.float(), diff.float())
+
+    # dist_sq = torch.square(torch.sum(diff * sigma_inv[None, :, :] * diff, dim=-1)) # (b, c, dim) * (1, c, dim) * (b, c, dim)
     return dist_sq
 
 def omega(z, mu, sigma_inv, rho):
@@ -115,18 +119,19 @@ def minimize_curve(z0, z1, mu, sigma_var, rho,
         Z = unpack(x)
         Gd = G_batched(Z, mu, sigma_var, rho, lam=lam, tau=tau, eps=eps)   # (k,D)
         # 1 / det(G) computed stably: exp(-sum_d log Gd)
-        inv_det = torch.exp(-1.0 * torch.sum(torch.log(Gd + eps), dim=1))        # (k,)
+        # inv_det = torch.exp(-0.5 * torch.sum(torch.log(Gd + eps), dim=1))        # (k,)
+        inv_det = -0.5 * torch.sum(torch.log(Gd + eps), dim=1)        # (k,)
         val = torch.sum(w * inv_det)
         if smooth1 > 0.0 or smooth2 > 0.0:
             num_pts = Z.shape[0] - 1           
 
             diffs = Z[1:] - Z[:-1]
 
-            l2_dists = F.softmax(torch.sum(diffs, dim=-1), dim=0)
-            target = torch.full((1,num_pts), 1/num_pts).to(DEVICE)
+            # l2_dists = F.softmax(torch.sum(diffs, dim=-1), dim=0)
+            # target = torch.full((1,num_pts), 1/num_pts).to(DEVICE)
 
-            # val += smooth * torch.sum(diffs * diffs)
-            val += smooth1 * torch.sum(torch.square(l2_dists - target)) + smooth2 * torch.sum(diffs * diffs)
+            val += smooth1 * torch.sum(diffs * diffs)
+            # val += smooth1 * torch.sum(torch.square(l2_dists - target)) + smooth2 * torch.sum(diffs * diffs)
         return val
 
     list_params = []
@@ -158,7 +163,7 @@ def path_cost(path, mu, sigma_var, rho, eps=1e-12, DEVICE=DEVICE, lam=0.0, tau=0
     returns: cumulative path cost wrt geodesic metric defined above (see minimize_curve)
     """
     Gd = G_batched(path, mu, sigma_var, rho, lam=lam, tau=tau, eps=eps)   # (k,D)
-    inv_det = torch.exp(-1.0 * torch.sum(torch.log(Gd + eps), dim=1))        # (k,)
+    inv_det = torch.exp(-0.5 * torch.sum(torch.log(Gd + eps), dim=1))        # (k,)
     val = torch.sum(inv_det)
     return val
 
