@@ -120,7 +120,7 @@ def minimize_curve(z0, z1, mu, sigma_var, rho,
         Gd = G_batched(Z, mu, sigma_var, rho, lam=lam, tau=tau, eps=eps)   # (k,D)
         # 1 / det(G) computed stably: exp(-sum_d log Gd)
         # inv_det = torch.exp(-0.5 * torch.sum(torch.log(Gd + eps), dim=1))        # (k,)
-        inv_det = -0.5 * torch.sum(torch.log(Gd + eps), dim=1)        # (k,)
+        inv_det = 0.5 * torch.sum(torch.log(Gd + eps), dim=1)        # (k,)
         val = torch.sum(w * inv_det)
         if smooth1 > 0.0 or smooth2 > 0.0:
             num_pts = Z.shape[0] - 1           
@@ -249,6 +249,14 @@ def get_data_dict(dset, abspath):
     ------
     keys: String[], ["new_dataset", "metadata", "collection_dates", "pairs", "parents_dict", "clade_indexes", "clade_labels"]
     data_dict: Dict{}, dict with keys corresponding to above
+
+    new_dataset - one-hot encoded sequences
+    metadata - pd.DataFrame with metadata about sequences
+    collection_dates - list of dates when sequences were collected (extracted from metadata)
+    pairs - child/parent sequence pairs
+    parents_dict - dict with keys being child, value being parent
+    clade_indexes - list (of lists) where elem "i" is a list containing index of every sequence corresponding to clade "i"
+    clade_labels - list where elem "i" is the clade name of sequence "i"
     """
 
     data_dict = dict()
@@ -305,4 +313,60 @@ def get_data_dict(dset, abspath):
         data_dict[k] = eval(k)
 
     return var_names, data_dict
+
+def model_eval(vae_model, new_dataset, model_type="STANDARD"):
+    """
+    input:
+    -----
+    model: either standard VAE model or bedford VAE model
+    new_dataset: see get_data_dict() above
+
+    output:
+    ------
+    return Z_mean, Z_logvar, recon, genome, genome_recon
+    """
+
+    assert model_type == "STANDARD" or model_type == "BEDFORD", "invalid model_type argument (should be either 'STANDARD' or 'BEDFORD')"
+
+    X = torch.tensor(new_dataset)
+    X = X.view(X.size(0), -1).to(DEVICE)
+    X = mask_gaps(X,zero_idx=4)   
+    
+    recon = None
+    Z_mean = None
+    Z_logvar = None
+    genome = None
+    genome_recon = None
+
+    with torch.no_grad():
+        # STANDARD
+        if model_type == "STANDARD":
+            Z_mean, Z_logvar = vae_model.encoder.forward(X)
+            recon = vae_model.decoder.forward(Z_mean)
+            recon = recon.view(recon.shape[0], -1).cpu()
+            Z_mean = Z_mean.cpu().numpy()
+            Z_logvar = Z_logvar.cpu().numpy()
+
+        # # BEDFORD
+        elif model_type == "BEDFORD":
+            recon, Z_mean, Z_logvar = vae_model.forward(X)
+            recon = recon.cpu()
+            Z_mean = Z_mean.cpu().numpy()
+            Z_logvar = Z_logvar.cpu().numpy()
+        
+        print("\nRecon shape")
+        print(recon.shape)
+
+        
+    converter = np.vectorize(lambda x: ALPHABET[int(x)])
+
+    genome = np.dot(new_dataset, np.arange(len(ALPHABET)))
+    genome = np.reshape(converter(genome.ravel()), genome.shape)
+
+    genome_recon = torch.argmax(recon.view(recon.shape[0], -1, 5), dim=-1).cpu().detach().numpy()
+    genome_recon = np.reshape(converter(genome_recon.ravel()), genome.shape)
+    genome_recon[genome == "-"] = "-"
+
+    return Z_mean, Z_logvar, recon.numpy(), genome, genome_recon
+    
 
