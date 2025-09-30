@@ -8,7 +8,7 @@ from models import VAE, DNADataset, ALPHABET, SEQ_LENGTH, LATENT_DIM
 import torch.nn as nn
 
 BATCH_SIZE = 64
-EPOCHS = 50
+EPOCHS = 70
 
 def main(args):
     # DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -28,7 +28,8 @@ def main(args):
         valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
 
     input_dim = SEQ_LENGTH * len(ALPHABET)
-    vae_model = VAE(input_dim=input_dim, latent_dim=50).to(DEVICE)
+    vae_model = VAE(input_dim=input_dim, latent_dim=50, non_linear_activation=nn.Softplus(beta=1.0)).to(DEVICE)
+    print(vae_model)
 
     if args.input_vae_model and os.path.exists(args.input_vae_model):
         print(f"Loading VAE model from {args.input_vae_model}")

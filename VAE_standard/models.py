@@ -66,35 +66,27 @@ class Decoder(nn.Module):
         self.input_dim = input_dim
         self.latent_dim = latent_dim
         self.non_linear_activation = non_linear_activation
-        # self.last_non_linear_activation = nn.Sigmoid()
 
-        self.means = nn.ModuleList([
+        self.decode = nn.Sequential(
             nn.Linear(self.latent_dim, 256),
+            self.non_linear_activation,
             nn.Linear(256,512),
+            self.non_linear_activation,
             nn.Linear(512, self.input_dim * self.input_channels) # last layer
-        ])
-
-        for mu in self.means:
-            nn.init.constant_(mu.bias,0.1)
+        )
 
     def forward(self, x):
-        for i in range(2):
-            x = self.means[i](x)
-            x = self.non_linear_activation(x)
-
-        x = self.means[-1](x)
+        x = self.decode(x)
         x = x.view(-1,self.input_dim, self.input_channels)
-        # x = F.softmax(x, dim=-1)
         x = F.log_softmax(x, dim=-1)
-        # x = x.view(-1,self.input_dim * self.input_channels)
         return x
 
 class VAE(nn.Module):
-    def __init__(self, input_dim, latent_dim):
+    def __init__(self, input_dim, latent_dim, non_linear_activation=nn.ReLU()):
         super().__init__()
         self.input_dim = input_dim
         self.latent_dim = latent_dim
-        self.non_linear_activation = nn.ReLU()
+        self.non_linear_activation = non_linear_activation
 
         self.encoder = Encoder(input_dim, latent_dim, self.non_linear_activation)
         self.decoder = Decoder(input_dim // len(ALPHABET), latent_dim, self.non_linear_activation)
