@@ -25,98 +25,57 @@ from treetime.utils import datetime_from_numeric
 import pymc as pm
 from collections.abc import Iterable
 import altair as alt
+import utils
 
 BATCH_SIZE = 64
-# "data" directory is generated as shown in README.md file
-dataset = DNADataset(f"{abspath}/../data/training_spike.fasta")
-dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+dset = ["training", "valid", "test"]
+dset = dset[0]
+abspath = "."
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(DEVICE)
 
+# LOAD DATA
+data_keys, data_dict = utils.get_data_dict(dset, abspath)
+print(data_keys)
+new_dataset = data_dict["new_dataset"]
+vals = data_dict["vals"]
+metadata = data_dict["metadata"]
+clade_labels = data_dict["clade_labels"]
+collection_dates = data_dict["collection_dates"]
+indexes = data_dict["indexes"]
+pairs = data_dict["pairs"]
+get_parents_dict = data_dict["get_parents_dict"]
+
+
+# LOAD MODEL
 input_dim = len(ALPHABET) * SEQ_LENGTH
-# input_dim = 29903 * 5
-# input_dim = 29903
-
-# BEDFORD
-# vae_model = bedford.VAE(input_dim=len(bedford.ALPHABET) * bedford.SEQ_LENGTH, latent_dim=bedford.LATENT_DIM).to(DEVICE)
-# vae_model.load_state_dict(torch.load(f"{abspath}/bedford_code/results_bedford/BEST_vae_ce_anneal.pth"))
-#STANDARD
-vae_model = VAE(input_dim=input_dim, latent_dim=50).to(DEVICE)
-vae_model.load_state_dict(torch.load(f"{abspath}/model_saves/standard_VAE_model_BEST.pth", weights_only=True, map_location=DEVICE))
-
+vae_model = VAE(input_dim=input_dim, latent_dim=50, non_linear_activation=nn.Softplus(beta=1.0)).to(DEVICE)
+vae_model.load_state_dict(torch.load("./VAE_standard/model_saves/standard_VAE_model_BEST.pth", weights_only=True, map_location=DEVICE))
 vae_model.eval()
 
-dset = ["training", "valid", "test"]
-dset = dset[0]
-print(dset)
-abspath = "."
-dataset = DNADataset(f"{abspath}/data/{dset}_spike.fasta")
-new_dataset = np.array([dataset[x][0].numpy() for x in range(len(dataset))])
-vals = np.array([dataset[x][1] for x in range(len(dataset))])
+# EVAL DATA
+Z_mean, Z_logvar, recon, genome, genome_recon = utils.model_eval(vae_model, new_dataset, model_type="STANDARD")
 
-def flatten(xs):
-    for x in xs:
-        if isinstance(x, Iterable) and not isinstance(x, (str, float)):
-            yield from flatten(x)
-        else:
-            yield x
+# PCA REDUCE
+pca = PCA(n_components=4, svd_solver="full")
+pca.fit(Z_mean - np.mean(Z_mean))
+Z_embedded = pca.transform(Z_mean - np.mean(Z_mean))
+variances = pca.explained_variance_ratio_
+tot = np.sum(variances)
+print(variances)
+print(f"total variance: {tot}")
 
+# GP regression, sampling by month
+# TIME vs. DIM data creation
 metadata = pd.read_csv(f"{abspath}/data/all_data/all_metadata.tsv", sep="\t")
-clade_labels = [metadata.loc[metadata.name == vals[i], "clade_membership"].values[0] for i in range(len(vals))]
-good_clade_labels = []
-for c in clade_labels:
-    if len(metadata[metadata.clade_membership == c]) > 5:
-        good_clade_labels.append(c)
-print(set(good_clade_labels))
-
-# print(set(clade_labels))
-
-# clusters = np.sort(np.array(list(set(good_clade_labels))))
-clusters = np.sort(np.array(list(set(clade_labels))))
-print(clusters)
-get_clade = lambda x: [True if elem == x else False for elem in clade_labels]
-indexes = tuple([np.arange(len(clade_labels))[get_clade(x)] for x in clusters])
-
-ranges = np.concatenate(indexes)
-X = torch.tensor(new_dataset[ranges,:,:])
-# X = X.to(DEVICE)
-X = X.view(X.size(0), -1).to(DEVICE)
-print("X shape")
-print(new_dataset.shape)
-print(X.shape)
-
-pca = PCA(n_components=3, svd_solver="full")
-Z_mean = None
-Z_embedded = None
-with torch.no_grad():
-    # STANDARD
-    Z_mean, Z_logvar = vae_model.encoder.forward(X)
-    recon = vae_model.decoder.forward(Z_mean)
-    recon = recon.view(recon.shape[0], -1).cpu()
-    Z_mean = Z_mean.cpu()
-    Z_std = torch.exp(0.5 * Z_logvar).cpu()
-    # BEDFORD
-    # recon, Z_mean, Z_logvar = vae_model.forward(X)
-    # recon = recon.cpu().numpy()
-    # Z_mean = Z_mean.cpu().numpy()
-
-    pca.fit(Z_mean)
-    Z_embedded = pca.transform(Z_mean - torch.mean(Z_mean))
-    variances = pca.explained_variance_ratio_
-    tot = np.sum(variances)
-    print("\n",variances)
-    print(f"total variance: {tot}")
-
-# labeling
 dates = [metadata.loc[metadata.name == vals[i], "date"].values[0] for i in range(len(vals))]
 dates = [datetime_from_numeric(x) for x in dates]
+coords = [(x1,x2,x3,x4,t,c) for (x1,x2,x3,x4),t,c in zip(Z_embedded, dates,clade_labels)]
+coords = pd.DataFrame(data=coords, columns=["dim0","dim1","dim2","dim3","time","clade"])
 
-coords = [(x1,x2,x3,t,c) for (x1,x2,x3),t,c in zip(Z_embedded, dates,clade_labels)]
-coords = pd.DataFrame(data=coords, columns=["dim0","dim1","dim2","time","clade"])
-
-avg_coords = coords.groupby("time")[["dim0","dim1","dim2"]].median().resample("ME").median().dropna().reset_index()
-
+# SAMPLE BY MONTH
+avg_coords = coords.groupby("time")[["dim0","dim1","dim2","dim3"]].median().resample("ME").median().dropna().reset_index()
 ubound = len(avg_coords)
 
 x_vals = np.linspace(0,ubound,num=len(avg_coords)).astype("float32")[:,np.newaxis]
@@ -148,20 +107,20 @@ def build_coords_model(dim, num_draws=2000):
     return trace, gp, model
 
 
-ls = ["dim0","dim1","dim2"]
-# ls = ["dim2"]
+ls = ["dim0","dim1","dim2", "dim3"]
+# ls = ["dim3"]
 N_draw = 6000
 
 print(ls,"\n",N_draw)
 
 ret_vals = [build_coords_model(d, num_draws=N_draw) for d in ls]
 
-GPs = [x[1] for x in ret_vals]
 idata = [x[0] for x in ret_vals]
+GPs = [x[1] for x in ret_vals]
 models = [x[2] for x in ret_vals]
 
 abspath = "."
-dict_to_save = {x:(idata[i],GPs[i], models[i]) for i,x in enumerate(["dim0","dim1","dim2"])}
+dict_to_save = {x:(idata[i],GPs[i], models[i]) for i,x in enumerate(ls)}
 with open(f"{abspath}/king_regression_data.pkl","wb") as buff:
     cloudpickle.dump(dict_to_save, buff)
 

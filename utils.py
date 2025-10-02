@@ -119,8 +119,7 @@ def minimize_curve(z0, z1, mu, sigma_var, rho,
         Z = unpack(x)
         Gd = G_batched(Z, mu, sigma_var, rho, lam=lam, tau=tau, eps=eps)   # (k,D)
         # 1 / sqrt(det(G)) computed stably: exp(-sum_d log Gd)
-        # inv_det = torch.exp(-0.5 * torch.sum(torch.log(Gd + eps), dim=1))        # (k,)
-        inv_det = 1.0 / (0.5 * torch.sum(torch.log(Gd + eps), dim=1))        # (k,)
+        inv_det = torch.exp(-0.5 * torch.sum(torch.log(Gd + eps), dim=1))        # (k,)
         val = torch.sum(w * inv_det)
         if smooth1 > 0.0 or smooth2 > 0.0:
             num_pts = Z.shape[0] - 1           
