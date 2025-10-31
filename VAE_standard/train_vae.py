@@ -1,4 +1,3 @@
-# code from ChatGPT
 import argparse
 import os
 import torch
@@ -28,7 +27,8 @@ def main(args):
         valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
 
     input_dim = SEQ_LENGTH * len(ALPHABET)
-    vae_model = VAE(input_dim=input_dim, latent_dim=50, non_linear_activation=nn.Softplus(beta=1.0)).to(DEVICE)
+    # Use ReLU to guarantee that Hessian of decoder is 0, making formulation of Riemannian metric mathematically sound
+    vae_model = VAE(input_dim=input_dim, latent_dim=50, non_linear_activation=nn.ReLU()).to(DEVICE)
     print(vae_model)
 
     if args.input_vae_model and os.path.exists(args.input_vae_model):
