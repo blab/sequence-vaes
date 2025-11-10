@@ -135,11 +135,8 @@ class BIFEstimator(SamplerCallback):
             self.device
         ).startswith(
             "cuda"
-        ):  # if we've ran on multi-GPU, we should do a reduce as well. see above for how this would work
-            try:
-                torch.distributed.all_reduce(self.losses)
-            except ValueError:
-                pass
+        ):  # NOTE: there may need to be additional code here if you've ran on multi-GPU -- should work otherwise if using single GPU
+            pass
 
     def __call__(self, chain: int, draw: int, **kwargs):
         self.update(chain, draw, kwargs["results"]["loss_vec"], kwargs["results"]["obs"])
