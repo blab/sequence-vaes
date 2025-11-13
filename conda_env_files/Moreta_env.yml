@@ -596,6 +596,7 @@ dependencies:
       - toolz==1.0.0
       - torch==2.1.0
       - torchdata==0.7.0
+      - transformers==4.57.1
       - triton==2.1.0
       - typer-slim==0.20.0
       - types-python-dateutil==2.9.0.20250708

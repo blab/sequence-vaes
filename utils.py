@@ -313,6 +313,20 @@ def get_data_dict(dset, abspath):
 
     return var_names, data_dict
 
+def get_genome(arr, converter = np.vectorize(lambda x: ALPHABET[int(x)])):
+    """
+    input:
+    new_dataset: array of shape (len(ALPHABET), N) where N is number of nucleotides + gaps
+    converter: lamda function that takes one-hot array -> letter in ALPHABET
+
+    returns:
+    genome: new_dataset as strings, i.e. [[1,0,0,0],[0,1,0,0,0]] -> ["A", "G"]
+    """
+    
+    genome = np.reshape(converter(arr.ravel()), arr.shape)
+    return genome
+    
+
 def model_eval(vae_model, new_dataset, model_type="STANDARD"):
     """
     input:
@@ -356,15 +370,12 @@ def model_eval(vae_model, new_dataset, model_type="STANDARD"):
         print("\nRecon shape")
         print(recon.shape)
 
+        genome = np.dot(new_dataset, np.arange(len(ALPHABET)))
+        genome = get_genome(genome)
         
-    converter = np.vectorize(lambda x: ALPHABET[int(x)])
-
-    genome = np.dot(new_dataset, np.arange(len(ALPHABET)))
-    genome = np.reshape(converter(genome.ravel()), genome.shape)
-
-    genome_recon = torch.argmax(recon.view(recon.shape[0], -1, 5), dim=-1).cpu().detach().numpy()
-    genome_recon = np.reshape(converter(genome_recon.ravel()), genome.shape)
-    genome_recon[genome == "-"] = "-"
+        genome_recon = torch.argmax(recon.view(recon.shape[0], -1, 5), dim=-1).cpu().detach().numpy()
+        genome_recon = get_genome(genome_recon)
+        genome_recon[genome == "-"] = "-"
 
     return Z_mean, Z_logvar, recon.numpy(), genome, genome_recon
     
