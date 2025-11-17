@@ -47,6 +47,9 @@ class BIFEstimator(SamplerCallback):
         self.observables = torch.zeros((num_obs, num_chains*num_draws), dtype=torch.float32).to(
             device
         )
+        self.sgld_losses = torch.zeros((num_chains, num_draws), dtype=torch.float32).to(
+            device
+        )
         self.init_loss = init_loss
 
         assert nbeta is not None or temperature is not None, (
@@ -62,13 +65,14 @@ class BIFEstimator(SamplerCallback):
         self.device = device
         self.eval_field = eval_field
 
-    def update(self, chain: int, draw: int, loss_vec: torch.tensor, obs_vec: torch.tensor):
+    def update(self, chain: int, draw: int, loss_vec: torch.tensor, obs_vec: torch.tensor, sgld_loss: torch.tensor):
         if torch.isnan(loss_vec).any():
             raise RuntimeError(f"NaN detected in loss at chain {chain}, draw {draw}")
 
         col = chain * self.num_draws + draw
         self.losses[:, col] = loss_vec.to(self.device)
         self.observables[:, col] = obs_vec.to(self.device)
+        self.sgld_losses[chain, draw] = sgld_loss.to(self.device)
 
 
     def get_results(self):
@@ -94,9 +98,10 @@ class BIFEstimator(SamplerCallback):
 
         return {
             "init_loss": init_loss,
-            "BIF": BIF,
+            "BIF": BIF.cpu().numpy(),
             "loss/trace": self.losses.cpu().numpy(),
             "obs/trace": self.observables.cpu().numpy(),
+            "sgld_loss/trace": self.sgld_losses.cpu().numpy()
         }
 
     def finalize(self):
@@ -139,7 +144,7 @@ class BIFEstimator(SamplerCallback):
             pass
 
     def __call__(self, chain: int, draw: int, **kwargs):
-        self.update(chain, draw, kwargs["results"]["loss_vec"], kwargs["results"]["obs"])
+        self.update(chain, draw, loss_vec=kwargs["results"]["loss_vec"], obs_vec=kwargs["results"]["obs"], sgld_loss=kwargs["loss"])
 
 def estimate_bif(
     model: torch.nn.Module,
