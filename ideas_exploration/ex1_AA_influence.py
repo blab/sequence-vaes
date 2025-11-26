@@ -71,11 +71,11 @@ def get_BIF_data(
 
     x = Bio.Data.CodonTable.standard_dna_table
     str_seqs = ["".join(x).replace("-","") for x in sequences]
-    codons = [[x[num_masks * i:num_masks * (i+1)] for i in range(len(x) // num_masks)] for x in str_seqs]
+    codons = [[x[num_masks * i:3 * (i+1)] for i in range(len(x) // 3)] for x in str_seqs]
     aa_drop_na = [[s for s in "".join([x.forward_table.get(s,"") for s in seq][:MAX_TOKEN_LENGTH])] for seq in codons]
     print("done extracting AAs!")
 
-    test_seq = aa_drop_na[TEST_SEQ-1:TEST_SEQ]
+    test_seq = aa_drop_na[TEST_SEQ:TEST_SEQ+1]
     masked_seqs = [seq.copy() for j in range(MAX_TOKEN_LENGTH // num_masks) for seq in test_seq]
     labeled_seqs = [seq for j in range(MAX_TOKEN_LENGTH // num_masks) for seq in test_seq]
     print("done creating element copies!")
@@ -101,15 +101,16 @@ def get_BIF_data(
     ## PREPARING DATA FOR MODEL
     ## ---------------------------
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm_probability=0.15, return_tensors="pt")
+    
     sgld_dataset = tokenizer(text=train_data, return_tensors="pt", add_special_tokens=False, truncation=False, padding=True)["input_ids"]
-    sgld_inputs, sgld_labels = data_collator.torch_mask_tokens(sgld_dataset)
-
-    sgld_inputs = sgld_inputs.to(DEVICE)
-    sgld_labels = sgld_labels.to(DEVICE)
+    def collate_fn(batch, data_collator=data_collator, device=DEVICE):
+        batch = torch.stack(batch, dim=0)
+        inputs, labels = data_collator.torch_mask_tokens(batch)
+        return inputs.to(device), labels.to(DEVICE)
 
     print("SGLD inputs, labels")
-    print(sgld_inputs.shape)
-    print(sgld_labels.shape, "\n")
+    print(sgld_dataset.shape)
+    print(sgld_dataset.shape, "\n")
 
 
     bif_inputs = tokenizer(text=masked_seqs, return_tensors="pt", add_special_tokens=False, truncation=False)
@@ -127,6 +128,7 @@ def get_BIF_data(
 
     test_seq = tokenizer(text=masked_seqs[TEST_TOKEN], return_tensors="pt", add_special_tokens=False, truncation=False)
     test_seq_label = tokenizer(text=labeled_seqs[TEST_TOKEN], return_tensors="pt", add_special_tokens=False, truncation=False)["input_ids"]
+    test_seq_label = torch.where(test_seq["input_ids"] == tokenizer.mask_token_id, test_seq_label, -100)
 
     test_seq_label = test_seq_label.squeeze().to(DEVICE)
     test_seq["input_ids"] = test_seq["input_ids"].to(DEVICE)
@@ -134,7 +136,7 @@ def get_BIF_data(
 
     
     bif_dataloader = torch.utils.data.DataLoader(list(zip(zip(bif_inputs["input_ids"], bif_inputs["attention_mask"]), bif_labels)), batch_size=BATCH_SIZE, shuffle=False, drop_last=False)
-    sgld_dataloader = torch.utils.data.DataLoader(list(zip(sgld_inputs, sgld_labels)), batch_size=BATCH_SIZE, shuffle=False, drop_last=False)
+    sgld_dataloader = torch.utils.data.DataLoader(sgld_dataset, collate_fn=collate_fn, batch_size=BATCH_SIZE, shuffle=False, drop_last=False)
 
     test_seq_disp = "".join(aa_drop_na[TEST_SEQ])
     test_seq_disp = ["<%s>"%(test_seq_disp[num_masks * i : num_masks * (i+1)]) for i in range(len(test_seq_disp) // num_masks)]
