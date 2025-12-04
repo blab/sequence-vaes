@@ -5,6 +5,7 @@ from Bio import SeqIO
 # corresponds to SARS-CoV-2 spike for Wuhan/1 alignment
 DEFAULT_BEGIN = 21563
 DEFAULT_END = 25384
+# DEFAULT_END = 23617
 
 def trim_alignment(input_file, output_file, begin, end):
     with open(input_file, "r") as infile, open(output_file, "w") as outfile:
