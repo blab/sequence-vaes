@@ -27,7 +27,7 @@ from BIF_sampler import (
 import pandas as pd
 
 MAX_TOKEN_LENGTH = 510
-BATCH_SIZE=60
+BATCH_SIZE=80
 BIF_BATCH_SIZE=80
 num_masks = 3
 
@@ -60,7 +60,10 @@ def get_ex2_data(tokenizer, file_path="../data/training_spike.fasta"):
     print("done extracting AAs!")
 
     unique_aa_seqs = list(np.unique(aa_drop_na))
-    train_data = tokenizer(text=unique_aa_seqs, return_tensors="pt", add_special_tokens=False, truncation=False, padding=True, padding_side="right")["input_ids"]
+    train_aa_seqs = [x[i*(MAX_TOKEN_LENGTH // 2):(i+2)*(MAX_TOKEN_LENGTH // 2)] for x in unique_aa_seqs for i in range(4)]
+    unique_aa_seqs = [x[:MAX_TOKEN_LENGTH] for x in unique_aa_seqs]
+    
+    train_data = tokenizer(text=train_aa_seqs, return_tensors="pt", add_special_tokens=False, truncation=False, padding=True, padding_side="right")["input_ids"]
     bif_data = tokenizer(text=unique_aa_seqs, return_tensors="pt", add_special_tokens=False, truncation=False, padding=True, padding_side="right")["input_ids"]
 
     return {"aa_drop_na":aa_drop_na, 
